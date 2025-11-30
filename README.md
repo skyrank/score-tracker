@@ -1,11 +1,22 @@
-I used Claude to help me create an app and deploy it.  The app allows multiple users of multiple games (competitions) to
-to keep track of any game competition with a running score. Multiple trackers can run simultaneously.
-An admin initializes the game and a code is generated for other users to join the Tracker.
-Any user can update a score while seeing who is winning at the bottom of the screen.
-The History of changes shows 1. who won the game, 2. who is winning the game or if its tied,
-3. Who updated the score, and 4. if the Admin did an Undue of the last action or reset the
-score.  By allowing any user to update the score, the app allows full engagement of all users,
-while also maintaining control of the scoring by the Admin, just in case someone tries to cheat
-or in case multiple users updated the same game.  All users can see who updated the last score.
-This tracking app is a simple way for game players who play a game over a long period of time
-to keep track of who is winning over that time frame.  
+# Game Tracker 2.0
+
+A real-time score tracking app for competitive games, built with Claude AI assistance.
+
+## Features
+- **Multiple game rooms**: Track different competitions simultaneously with unique room codes
+- **Multi-user support**: Admin creates room, others join with code
+- **Collaborative scoring**: Any user can update scores (promotes engagement)
+- **Admin controls**: Admin can undo mistakes or reset scores (prevents cheating)
+- **Activity history**: Shows who won, current leader, who updated, and all admin actions
+- **Real-time sync**: All users see updates instantly across devices
+
+## Tech Stack
+- React
+- Firebase Realtime Database
+- Tailwind CSS
+
+## Use Case
+Perfect for tracking games played over extended periods (cards, board games, sports) where you want a running score accessible to all players.
+
+## Live Demo
+[Link will go here after deployment]
