@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Tracker 2.0 - Multi-Player Score Tracker</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <!-- React -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const firebaseConfig = {
+            apiKey: "AIzaSyDrAhZosJCgo6wWyBsN5lMpGLZXsxc9weY",
+            authDomain: "card-game-tracker-1f5dd.firebaseapp.com",
+            databaseURL: "https://card-game-tracker-1f5dd-default-rtdb.firebaseio.com",
+            projectId: "card-game-tracker-1f5dd",
+            storageBucket: "card-game-tracker-1f5dd.firebasestorage.app",
+            messagingSenderId: "814317215030",
+            appId: "1:814317215030:web:32aa794c2e13d59efc2797",
+            measurementId: "G-610H3Z4XQJ"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const { useState, useEffect } = React;
+
+        function generateRoomCode() {
+            return 'GAME-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        function GameTrackerApp() {
+            const [currentView, setCurrentView] = useState('welcome');
+            const [roomCode, setRoomCode] = useState('');
+            const [isAdmin, setIsAdmin] = useState(false);
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-teal-800 to-cyan-900">
+                    {currentView === 'welcome' && (
+                        <WelcomeScreen 
+                            onCreateRoom={() => setCurrentView('create')}
+                            onJoinRoom={() => setCurrentView('join')}
+                        />
+                    )}
+                    {currentView === 'create' && (
+                        <CreateRoomScreen 
+                            onRoomCreated={(code) => {
+                                setRoomCode(code);
+                                setIsAdmin(true);
+                                setCurrentView('game');
+                            }}
+                            onBack={() => setCurrentView('welcome')}
+                        />
+                    )}
+                    {currentView === 'join' && (
+                        <JoinRoomScreen 
+                            onRoomJoined={(code) => {
+                                setRoomCode(code);
+                                setIsAdmin(false);
+                                setCurrentView('game');
+                            }}
+                            onBack={() => setCurrentView('welcome')}
+                        />
+                    )}
+                    {currentView === 'game' && (
+                        <GameRoom 
+                            roomCode={roomCode}
+                            isAdmin={isAdmin}
+                            onLeaveRoom={() => {
+                                setCurrentView('welcome');
+                                setRoomCode('');
+                                setIsAdmin(false);
+                            }}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        function WelcomeScreen({ onCreateRoom, onJoinRoom }) {
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="max-w-md w-full">
+                        <div className="text-center mb-8">
+                            <h1 className="text-5xl font-bold text-white mb-4">🎮 Game Tracker 2.0</h1>
+                            <p className="text-emerald-200 text-lg">Track scores for any game with friends!</p>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <button
+                                onClick={onCreateRoom}
+                                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-6 px-8 rounded-2xl hover:shadow-2xl hover:scale-105 transition-all text-xl"
+                            >
+                                ✨ Create New Game Room
+                            </button>
+                            
+                            <button
+                                onClick={onJoinRoom}
+                                className="w-full bg-gradient-to-r from-blue-500 to-cyan-600 text-white font-bold py-6 px-8 rounded-2xl hover:shadow-2xl hover:scale-105 transition-all text-xl"
+                            >
+                                🔗 Join Existing Room
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function CreateRoomScreen({ onRoomCreated, onBack }) {
+            const [roomName, setRoomName] = useState('');
+            const [players, setPlayers] = useState(['', '']);
+            const [games, setGames] = useState(['', '']);
+            const [error, setError] = useState('');
+
+            const addPlayer = () => players.length < 10 && setPlayers([...players, '']);
+            const removePlayer = (i) => players.length > 2 && setPlayers(players.filter((_, idx) => idx !== i));
+            const updatePlayer = (i, val) => {
+                const newPlayers = [...players];
+                newPlayers[i] = val;
+                setPlayers(newPlayers);
+            };
+
+            const addGame = () => games.length < 5 && setGames([...games, '']);
+            const removeGame = (i) => games.length > 1 && setGames(games.filter((_, idx) => idx !== i));
+            const updateGame = (i, val) => {
+                const newGames = [...games];
+                newGames[i] = val;
+                setGames(newGames);
+            };
+
+            const createRoom = () => {
+                if (!roomName.trim()) {
+                    setError('Please enter a room name');
+                    return;
+                }
+                
+                const validPlayers = players.filter(p => p.trim());
+                if (validPlayers.length < 2) {
+                    setError('Please enter at least 2 player names');
+                    return;
+                }
+
+                const validGames = games.filter(g => g.trim());
+                if (validGames.length < 1) {
+                    setError('Please enter at least 1 game name');
+                    return;
+                }
+
+                const code = generateRoomCode();
+                const roomData = {
+                    roomName: roomName.trim(),
+                    players: validPlayers,
+                    games: validGames,
+                    scores: {},
+                    history: [],
+                    activityLog: [],
+                    createdAt: Date.now()
+                };
+
+                validGames.forEach(game => {
+                    roomData.scores[game] = {};
+                    validPlayers.forEach(player => {
+                        roomData.scores[game][player] = 0;
+                    });
+                });
+
+                database.ref(`rooms/${code}`).set(roomData)
+                    .then(() => onRoomCreated(code))
+                    .catch(() => setError('Error creating room'));
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="max-w-2xl w-full bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8 max-h-screen overflow-y-auto">
+                        <button onClick={onBack} className="mb-4 text-gray-600 hover:text-gray-800 font-semibold">← Back</button>
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Create Game Room</h2>
+
+                        {error && <div className="bg-red-100 border-2 border-red-500 text-red-800 px-4 py-3 rounded-lg mb-4">{error}</div>}
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-gray-700 font-semibold mb-2">Room Name</label>
+                                <input
+                                    type="text"
+                                    value={roomName}
+                                    onChange={(e) => setRoomName(e.target.value)}
+                                    placeholder="e.g., Joe & Siggi's Game Night"
+                                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-700 font-semibold mb-2">Players (2-10) - {players.filter(p => p.trim()).length} added</label>
+                                <div className="space-y-2 mb-2">
+                                    {players.map((player, i) => (
+                                        <div key={i} className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={player}
+                                                onChange={(e) => updatePlayer(i, e.target.value)}
+                                                placeholder={`Player ${i + 1}`}
+                                                className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"
+                                            />
+                                            {players.length > 2 && (
+                                                <button onClick={() => removePlayer(i)} className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">✕</button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                {players.length < 10 && (
+                                    <button onClick={addPlayer} className="text-emerald-600 font-semibold hover:text-emerald-700">+ Add Player</button>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-700 font-semibold mb-2">Games to Track (1-5) - {games.filter(g => g.trim()).length} added</label>
+                                <div className="space-y-2 mb-2">
+                                    {games.map((game, i) => (
+                                        <div key={i} className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={game}
+                                                onChange={(e) => updateGame(i, e.target.value)}
+                                                placeholder={`Game ${i + 1}`}
+                                                className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"
+                                            />
+                                            {games.length > 1 && (
+                                                <button onClick={() => removeGame(i)} className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">✕</button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                {games.length < 5 && (
+                                    <button onClick={addGame} className="text-emerald-600 font-semibold hover:text-emerald-700">+ Add Game</button>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={createRoom}
+                                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-4 px-6 rounded-xl hover:shadow-xl hover:scale-105 transition-all text-lg"
+                            >
+                                Create Room & Get Code 🎉
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function JoinRoomScreen({ onRoomJoined, onBack }) {
+            const [code, setCode] = useState('');
+            const [error, setError] = useState('');
+            const [roomInfo, setRoomInfo] = useState(null);
+
+            const checkRoom = () => {
+                if (!code.trim()) {
+                    setError('Please enter a room code');
+                    return;
+                }
+
+                database.ref(`rooms/${code.trim().toUpperCase()}`).once('value')
+                    .then(snapshot => {
+                        if (snapshot.exists()) {
+                            setRoomInfo(snapshot.val());
+                            setError('');
+                        } else {
+                            setError('Room not found');
+                            setRoomInfo(null);
+                        }
+                    })
+                    .catch(() => setError('Error checking room'));
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="max-w-md w-full bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
+                        <button onClick={onBack} className="mb-4 text-gray-600 hover:text-gray-800 font-semibold">← Back</button>
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Join Game Room</h2>
+
+                        {error && <div className="bg-red-100 border-2 border-red-500 text-red-800 px-4 py-3 rounded-lg mb-4">{error}</div>}
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-700 font-semibold mb-2">Enter Room Code</label>
+                                <input
+                                    type="text"
+                                    value={code}
+                                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                                    placeholder="GAME-XXXXX"
+                                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-center text-xl font-mono"
+                                />
+                            </div>
+
+                            <button
+                                onClick={checkRoom}
+                                className="w-full bg-gradient-to-r from-blue-500 to-cyan-600 text-white font-bold py-3 px-6 rounded-xl hover:shadow-xl transition-all"
+                            >
+                                Check Room
+                            </button>
+
+                            {roomInfo && (
+                                <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+                                    <h3 className="font-bold text-green-800 mb-2">✓ Room Found!</h3>
+                                    <p className="text-gray-700"><strong>Name:</strong> {roomInfo.roomName}</p>
+                                    <p className="text-gray-700"><strong>Players:</strong> {roomInfo.players.join(', ')}</p>
+                                    <p className="text-gray-700"><strong>Games:</strong> {roomInfo.games.join(', ')}</p>
+                                    
+                                    <button
+                                        onClick={() => onRoomJoined(code.trim().toUpperCase())}
+                                        className="w-full mt-4 bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition-all"
+                                    >
+                                        Join This Room 🎮
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function GameRoom({ roomCode, isAdmin, onLeaveRoom }) {
+            const [roomData, setRoomData] = useState(null);
+            const [selectedGame, setSelectedGame] = useState('');
+            const [selectedWinner, setSelectedWinner] = useState('');
+            const [showScores, setShowScores] = useState(false);
+            const [justAdded, setJustAdded] = useState(false);
+            const [isLoading, setIsLoading] = useState(true);
+            const [showRoomCode, setShowRoomCode] = useState(false);
+            const [userName, setUserName] = useState('');
+            const [userNameSet, setUserNameSet] = useState(false);
+
+            useEffect(() => {
+                const roomRef = database.ref(`rooms/${roomCode}`);
+                roomRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) setRoomData(data);
+                    setIsLoading(false);
+                });
+                return () => roomRef.off();
+            }, [roomCode]);
+
+            const addWin = () => {
+                const gameToUpdate = roomData.games.length === 1 ? roomData.games[0] : selectedGame;
+                
+                if (gameToUpdate && selectedWinner && userNameSet) {
+                    const newScores = { ...roomData.scores };
+                    newScores[gameToUpdate][selectedWinner] = (newScores[gameToUpdate][selectedWinner] || 0) + 1;
+                    
+                    const gameScores = newScores[gameToUpdate];
+                    let leader = null;
+                    let maxScore = -1;
+                    let isTied = false;
+                    const scores = [];
+                    
+                    Object.entries(gameScores).forEach(([player, score]) => {
+                        scores.push({ player, score });
+                        if (score > maxScore) {
+                            maxScore = score;
+                            leader = player;
+                            isTied = false;
+                        } else if (score === maxScore && maxScore >= 0) {
+                            isTied = true;
+                        }
+                    });
+                    
+                    scores.sort((a, b) => b.score - a.score);
+                    const leaderScore = scores[0].score;
+                    const secondScore = scores[1] ? scores[1].score : 0;
+                    
+                    const activity = {
+                        action: 'win_recorded',
+                        game: gameToUpdate,
+                        winner: selectedWinner,
+                        updatedBy: userName,
+                        leader: isTied ? 'Tied' : leader,
+                        leaderScore: leaderScore,
+                        secondScore: secondScore,
+                        timestamp: Date.now()
+                    };
+                    
+                    const newHistory = [...(roomData.history || []), { ...roomData.scores, timestamp: Date.now() }];
+                    const newActivityLog = [...(roomData.activityLog || []), activity];
+
+                    database.ref(`rooms/${roomCode}`).update({
+                        scores: newScores,
+                        history: newHistory,
+                        activityLog: newActivityLog
+                    });
+
+                    setJustAdded(true);
+                    setTimeout(() => setJustAdded(false), 2000);
+                    setSelectedGame('');
+                    setSelectedWinner('');
+                }
+            };
+
+            const resetScores = () => {
+                if (!isAdmin) return;
+                
+                if (window.confirm('Are you sure you want to reset all scores?')) {
+                    const activity = {
+                        action: 'reset_scores',
+                        timestamp: Date.now()
+                    };
+                    
+                    const newHistory = [...(roomData.history || []), { ...roomData.scores, timestamp: Date.now() }];
+                    const resetScores = {};
+                    
+                    roomData.games.forEach(game => {
+                        resetScores[game] = {};
+                        roomData.players.forEach(player => {
+                            resetScores[game][player] = 0;
+                        });
+                    });
+
+                    const newActivityLog = [...(roomData.activityLog || []), activity];
+
+                    database.ref(`rooms/${roomCode}`).update({
+                        scores: resetScores,
+                        history: newHistory,
+                        activityLog: newActivityLog
+                    });
+                }
+            };
+
+            const undoLastAction = () => {
+                if (!isAdmin || !roomData.history || roomData.history.length === 0) return;
+
+                const activity = {
+                    action: 'undo',
+                    timestamp: Date.now()
+                };
+
+                const previousState = roomData.history[roomData.history.length - 1];
+                const newHistory = roomData.history.slice(0, -1);
+                const newActivityLog = [...(roomData.activityLog || []), activity];
+
+                database.ref(`rooms/${roomCode}`).update({
+                    scores: previousState,
+                    history: newHistory,
+                    activityLog: newActivityLog
+                });
+            };
+
+            const getLeaderForGame = (game) => {
+                const scores = roomData.scores[game];
+                let leader = null;
+                let maxScore = -1;
+                let isTied = false;
+
+                Object.entries(scores).forEach(([player, score]) => {
+                    if (score > maxScore) {
+                        maxScore = score;
+                        leader = player;
+                        isTied = false;
+                    } else if (score === maxScore && maxScore > 0) {
+                        isTied = true;
+                    }
+                });
+
+                if (isTied || maxScore === 0) return 'Tied';
+                return leader;
+            };
+
+            if (isLoading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-white text-2xl">Loading game room... 🎮</div>
+                    </div>
+                );
+            }
+
+            if (!roomData) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-white text-2xl">Room not found</div>
+                    </div>
+                );
+            }
+
+            if (!userNameSet) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4">
+                        <div className="max-w-md w-full bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
+                            <h2 className="text-2xl font-bold text-gray-800 mb-4">What's your name?</h2>
+                            <p className="text-gray-600 mb-4">This will show who updates scores.</p>
+                            <input
+                                type="text"
+                                value={userName}
+                                onChange={(e) => setUserName(e.target.value)}
+                                placeholder="Enter your name"
+                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none mb-4"
+                                onKeyPress={(e) => e.key === 'Enter' && userName.trim() && setUserNameSet(true)}
+                            />
+                            <button
+                                onClick={() => userName.trim() && setUserNameSet(true)}
+                                disabled={!userName.trim()}
+                                className={`w-full py-3 px-6 rounded-xl font-bold transition-all ${
+                                    userName.trim()
+                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-xl'
+                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
+                            >
+                                Continue to Game Room
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen p-4 md:p-8">
+                    <div className="max-w-4xl mx-auto">
+                        <div className="text-center mb-8">
+                            <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">{roomData.roomName}</h1>
+                            <p className="text-emerald-200 text-lg mb-2">Players: {roomData.players.join(', ')}</p>
+                            <button
+                                onClick={() => setShowRoomCode(!showRoomCode)}
+                                className="bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-all mb-2"
+                            >
+                                {showRoomCode ? `Code: ${roomCode}` : 'Show Room Code'}
+                            </button>
+                            <p className="text-emerald-300 text-sm">✨ Real-time sync enabled!</p>
+                            {isAdmin && <p className="text-yellow-300 text-sm">👑 You are the admin</p>}
+                        </div>
+
+                        <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-6 md:p-8 mb-6">
+                            <h2 className="text-2xl font-bold text-gray-800 mb-6">Log a Win</h2>
+                            
+                            {justAdded && (
+                                <div className="bg-green-100 border-2 border-green-500 text-green-800 px-4 py-3 rounded-lg mb-4 text-center font-semibold">
+                                    ✓ Win recorded and synced!
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                {roomData.games.length > 1 && (
+                                    <div>
+                                        <label className="block text-gray-700 font-semibold mb-2">Which game?</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {roomData.games.map(game => (
+                                                <button
+                                                    key={game}
+                                                    onClick={() => setSelectedGame(game)}
+                                                    className={`py-3 px-4 rounded-xl font-bold transition-all ${
+                                                        selectedGame === game
+                                                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
+                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                    }`}
+                                                >
+                                                    {game}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-gray-700 font-semibold mb-2">Who won?</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {roomData.players.map(player => (
+                                            <button
+                                                key={player}
+                                                onClick={() => setSelectedWinner(player)}
+                                                className={`py-3 px-4 rounded-xl font-bold transition-all ${
+                                                    selectedWinner === player
+                                                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg scale-105'
+                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                🏆 {player}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={addWin}
+                                    disabled={roomData.games.length > 1 ? (!selectedGame || !selectedWinner) : !selectedWinner}
+                                    className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all ${
+                                        (roomData.games.length > 1 ? (selectedGame && selectedWinner) : selectedWinner)
+                                            ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white hover:shadow-xl hover:scale-105'
+                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    }`}
+                                >
+                                    Record Win 🎉
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="text-center mb-6">
+                            <button
+                                onClick={() => setShowScores(!showScores)}
+                                className="bg-white/20 backdrop-blur-lg border-2 border-white/40 text-white font-bold py-3 px-8 rounded-xl hover:bg-white/30 transition-all"
+                            >
+                                {showScores ? '🔽 Hide Scores' : '📊 Show Detailed Scores'}
+                            </button>
+                        </div>
+
+                        {showScores && (
+                            <div className="space-y-4 mb-6">
+                                {roomData.games.map(game => (
+                                    <div key={game} className="bg-white/90 backdrop-blur-lg rounded-2xl p-6">
+                                        <h3 className="text-2xl font-bold mb-4 text-gray-800">{game}</h3>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                            {roomData.players.map(player => (
+                                                <div key={player} className="text-center bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-lg">
+                                                    <p className="text-gray-700 font-semibold">{player}</p>
+                                                    <p className="text-4xl font-bold text-emerald-700">
+                                                        {roomData.scores[game][player] || 0}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="mt-4 text-center">
+                                            <p className="text-gray-700 font-semibold">Leader: {getLeaderForGame(game)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {isAdmin && (
+                            <div className="text-center mt-8 flex justify-center gap-4 flex-wrap">
+                                <button
+                                    onClick={undoLastAction}
+                                    disabled={!roomData.history || roomData.history.length === 0}
+                                    className={`font-semibold py-2 px-6 rounded-lg transition-all ${
+                                        roomData.history && roomData.history.length > 0
+                                            ? 'bg-amber-600/80 backdrop-blur-lg text-white hover:bg-amber-700'
+                                            : 'bg-gray-400/50 text-gray-300 cursor-not-allowed'
+                                    }`}
+                                >
+                                    ↶ Undo Last Action
+                                </button>
+                                <button
+                                    onClick={resetScores}
+                                    className="bg-red-600/80 backdrop-blur-lg text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-700 transition-all"
+                                >
+                                    Reset All Scores
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="text-center mt-6">
+                            <button
+                                onClick={onLeaveRoom}
+                                className="text-white/70 hover:text-white font-semibold"
+                            >
+                                ← Leave Room
+                            </button>
+                        </div>
+
+                        {roomData.activityLog && roomData.activityLog.length > 0 && (
+                            <div className="mt-8 bg-white/90 backdrop-blur-lg rounded-2xl p-6">
+                                <h3 className="text-xl font-bold text-gray-800 mb-4">📜 Activity History</h3>
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {[...roomData.activityLog].reverse().slice(0, 20).map((activity, idx) => {
+                                        const date = new Date(activity.timestamp);
+                                        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                        
+                                        let message = '';
+                                        if (activity.action === 'win_recorded') {
+                                            const updatedByText = activity.updatedBy ? ` (updated by ${activity.updatedBy})` : '';
+                                            if (activity.leader === 'Tied') {
+                                                message = `${activity.winner} won ${activity.game}. Tied ${activity.leaderScore}-${activity.secondScore}${updatedByText}`;
+                                            } else {
+                                                message = `${activity.winner} won ${activity.game}. ${activity.leader} leads ${activity.game} ${activity.leaderScore}-${activity.secondScore}${updatedByText}`;
+                                            }
+                                        } else if (activity.action === 'reset_scores') {
+                                            message = 'Admin reset all scores';
+                                        } else if (activity.action === 'undo') {
+                                            message = 'Admin undid last action';
+                                        }
+                                        
+                                        return (
+                                            <div key={idx} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg">
+                                                <span className="text-gray-700 text-sm">{message}</span>
+                                                <span className="text-gray-500 text-xs">{timeStr}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<GameTrackerApp />);
+    </script>
+</body>
+</html>
