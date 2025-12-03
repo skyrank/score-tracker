@@ -143,7 +143,7 @@
                 setPlayers(newPlayers);
             };
 
-            const addGame = () => games.length < 5 && setGames([...games, '']);
+            const addGame = () => games.length < 10 && setGames([...games, '']);
             const removeGame = (i) => games.length > 1 && setGames(games.filter((_, idx) => idx !== i));
             const updateGame = (i, val) => {
                 const newGames = [...games];
@@ -242,7 +242,7 @@
                             </div>
 
                             <div>
-                                <label className="block text-gray-700 font-semibold mb-2">Games to Track (1-5) - {games.filter(g => g.trim()).length} added</label>
+                                <label className="block text-gray-700 font-semibold mb-2">Games to Track (1-10) - {games.filter(g => g.trim()).length} added</label>
                                 <div className="space-y-2 mb-2">
                                     {games.map((game, i) => (
                                         <div key={i} className="flex gap-2">
@@ -259,7 +259,7 @@
                                         </div>
                                     ))}
                                 </div>
-                                {games.length < 5 && (
+                                {games.length < 10 && (
                                     <button onClick={addGame} className="text-emerald-600 font-semibold hover:text-emerald-700">+ Add Game</button>
                                 )}
                             </div>
