@@ -44,7 +44,7 @@
 
         function generateRoomCode() {
             const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            let code = 'GAME-';
+            let code = '';
             for (let i = 0; i < 6; i++) {
                 code += letters.charAt(Math.floor(Math.random() * letters.length));
             }
@@ -330,7 +330,7 @@
                                     type="text"
                                     value={code}
                                     onChange={(e) => setCode(e.target.value.toUpperCase())}
-                                    placeholder="GAME-XXXXX"
+                                    placeholder="ABCDEF"
                                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-center text-xl font-mono"
                                 />
                             </div>
