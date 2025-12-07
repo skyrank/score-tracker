@@ -135,7 +135,7 @@
             const [adminName, setAdminName] = useState('');
             const [error, setError] = useState('');
 
-            const addPlayer = () => players.length < 10 && setPlayers([...players, '']);
+            const addPlayer = () => players.length < 20 && setPlayers([...players, '']);
             const removePlayer = (i) => players.length > 2 && setPlayers(players.filter((_, idx) => idx !== i));
             const updatePlayer = (i, val) => {
                 const newPlayers = [...players];
@@ -219,7 +219,7 @@
                             </div>
 
                             <div>
-                                <label className="block text-gray-700 font-semibold mb-2">Players (2-10) - {players.filter(p => p.trim()).length} added</label>
+                                <label className="block text-gray-700 font-semibold mb-2">Players (2-20) - {players.filter(p => p.trim()).length} added</label>
                                 <div className="space-y-2 mb-2">
                                     {players.map((player, i) => (
                                         <div key={i} className="flex gap-2">
@@ -236,7 +236,7 @@
                                         </div>
                                     ))}
                                 </div>
-                                {players.length < 10 && (
+                                {players.length < 20 && (
                                     <button onClick={addPlayer} className="text-emerald-600 font-semibold hover:text-emerald-700">+ Add Player</button>
                                 )}
                             </div>
@@ -560,14 +560,93 @@
                     <div className="max-w-4xl mx-auto">
                         <div className="text-center mb-8">
                             <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">{roomData.roomName}</h1>
-                            <p className="text-emerald-200 text-lg mb-2">Players: {roomData.players.join(', ')}</p>
+                            <div className="flex items-center justify-center gap-3 mb-2">
+                                <p className="text-emerald-200 text-lg">Players: {roomData.players.join(', ')}</p>
+                                {isUserAdmin && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                const newPlayer = prompt('Enter new player name:');
+                                                if (newPlayer && newPlayer.trim()) {
+                                                    if (roomData.players.length >= 20) {
+                                                        alert('Maximum 20 players allowed');
+                                                        return;
+                                                    }
+                                                    if (roomData.players.includes(newPlayer.trim())) {
+                                                        alert('Player already exists');
+                                                        return;
+                                                    }
+                                                    const updatedPlayers = [...roomData.players, newPlayer.trim()];
+                                                    const updatedScores = { ...roomData.scores };
+                                                    roomData.games.forEach(game => {
+                                                        updatedScores[game][newPlayer.trim()] = 0;
+                                                    });
+                                                    database.ref(`rooms/${roomCode}`).update({
+                                                        players: updatedPlayers,
+                                                        scores: updatedScores
+                                                    });
+                                                }
+                                            }}
+                                            className="bg-emerald-600 text-white text-xs px-2 py-1 rounded hover:bg-emerald-700 transition-all"
+                                        >
+                                            + Add
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const playerToDelete = prompt('Enter player name to delete:');
+                                                if (playerToDelete && playerToDelete.trim()) {
+                                                    if (!roomData.players.includes(playerToDelete.trim())) {
+                                                        alert('Player not found');
+                                                        return;
+                                                    }
+                                                    if (roomData.players.length <= 2) {
+                                                        alert('Must have at least 2 players');
+                                                        return;
+                                                    }
+                                                    if (playerToDelete.trim() === roomData.adminName) {
+                                                        alert('Cannot delete the admin');
+                                                        return;
+                                                    }
+                                                    if (window.confirm(`Are you sure you want to delete ${playerToDelete.trim()}? Their scores will be removed.`)) {
+                                                        const updatedPlayers = roomData.players.filter(p => p !== playerToDelete.trim());
+                                                        const updatedScores = { ...roomData.scores };
+                                                        roomData.games.forEach(game => {
+                                                            delete updatedScores[game][playerToDelete.trim()];
+                                                        });
+                                                        database.ref(`rooms/${roomCode}`).update({
+                                                            players: updatedPlayers,
+                                                            scores: updatedScores
+                                                        });
+                                                    }
+                                                }
+                                            }}
+                                            className="bg-red-600 text-white text-xs px-2 py-1 rounded hover:bg-red-700 transition-all"
+                                        >
+                                            - Delete
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                             <p className="text-emerald-200 text-sm mb-2">Admin: {roomData.adminName}</p>
-                            <button
-                                onClick={() => setShowRoomCode(!showRoomCode)}
-                                className="bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-all mb-2"
-                            >
-                                {showRoomCode ? `Code: ${roomCode}` : 'Show Room Code'}
-                            </button>
+                            <div className="flex justify-center gap-2 mb-2">
+                                <button
+                                    onClick={() => setShowRoomCode(!showRoomCode)}
+                                    className="bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-all"
+                                >
+                                    {showRoomCode ? `Code: ${roomCode}` : 'Show Room Code'}
+                                </button>
+                                {showRoomCode && (
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(roomCode);
+                                            alert('Room code copied to clipboard!');
+                                        }}
+                                        className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-all"
+                                    >
+                                        📋 Copy Code
+                                    </button>
+                                )}
+                            </div>
                             <p className="text-emerald-300 text-sm">✨ Real-time sync enabled!</p>
                             {isUserAdmin && <p className="text-yellow-300 text-sm">👑 You are the admin</p>}
                         </div>
